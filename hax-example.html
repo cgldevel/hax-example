@@ -1,0 +1,92 @@
+<link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="../paper-card/paper-card.html">
+<link rel="import" href="../hax-body-behaviors/hax-body-behaviors.html">
+<link rel="import" href="../schema-behaviors/schema-behaviors.html">
+
+
+<!--
+`hax-test`
+testing hax setup
+
+@demo demo/index.html
+-->
+
+<dom-module id="headless-example">
+  <template>
+    <style>
+      :host {
+        display: block;
+        --paper-card-header-color: #fff;
+      }
+    </style>
+    <paper-card heading="[[title]]" image="http://www.guadalupegreatwhitesharks.com/wp-content/uploads/2017/05/geri-murphy-more-space_600x300.jpg"></paper-card>
+  </template>
+
+  <script>
+    Polymer({
+
+      is: 'headless-example',
+      behaviors: [HAXBehaviors.PropertiesBehaviors, SchemaBehaviors.Schema],
+
+      properties: {
+        title: {
+          type: String,
+          value: 'Great White Shark',
+        },
+      },
+
+
+      /**
+       * Attached to the DOM, now fire.
+       */
+       attached: function() {
+        // Establish hax property binding
+        let props = {
+          'canScale': true,
+          'canPosition': true,
+          'canEditSource': false,
+          'gizmo': {
+            'title': 'Shark Viewer',
+            'description': 'The user will be able to see this for selection in a UI.',
+            'icon': 'av:play-circle-filled',
+            'color': 'grey',
+            'groups': ['Video', 'Media'],
+            'handles': [
+              {
+                'type': 'video',
+                'url': 'source'
+              }
+            ],
+            'meta': {
+              'author': 'Your organization on github'
+            }
+          },
+          'settings': {
+            'quick': [
+              {
+                'property': 'title',
+                'title': 'Title',
+                'description': 'The title of the element',
+                'inputMethod': 'textfield',
+                'icon': 'editor:title',
+              },
+            ],
+            'configure': [
+              {
+                'property': 'title',
+                'title': 'Title',
+                'description': 'The title of the element',
+                'inputMethod': 'textfield',
+                'icon': 'editor:title',
+              },
+            ],
+            'advanced': [
+            ]
+          }
+        };
+        this.setHaxProperties(props);
+      },
+
+    });
+  </script>
+</dom-module>

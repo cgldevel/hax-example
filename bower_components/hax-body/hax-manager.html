@@ -1,0 +1,577 @@
+<link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="../app-layout/app-layout.html">
+<link rel="import" href="../paper-tabs/paper-tabs.html">
+<link rel="import" href="../paper-input/paper-input.html">
+<link rel="import" href="../paper-button/paper-button.html">
+<link rel="import" href="../paper-toggle-button/paper-toggle-button.html">
+<link rel="import" href="../iron-pages/iron-pages.html">
+<link rel="import" href="../iron-icons/iron-icons.html">
+<link rel="import" href="../paper-dialog/paper-dialog.html">
+<link rel="import" href="../vaadin-upload/vaadin-upload.html">
+<link rel="import" href="../neon-animation/web-animations.html">
+<link rel="import" href="../neon-animation/neon-animations.html">
+<link rel="import" href="../materializecss-styles/materializecss-styles.html">
+<link rel="import" href="hax-preview.html">
+<link rel="import" href="hax-app-browser.html">
+<link rel="import" href="hax-gizmo-browser.html">
+
+<!--
+`hax-manager`
+A LRN element for brokering the UI for api endpoints both in querying and uploading of new media to eventually bubble up an event for hax-body to have content inserted into it. This is a wiring closet of sorts to ensure we can talk to any backend that's returning a slew of widgets / media to insert.
+
+@demo demo/index.html
+
+@microcopy - the mental model for this element
+ - hax-manager - the modal for selecting a app for getting something added to hax-body. This will bubble an event up to an app which will then invoke the haxInsert function on hax-body in order to get the selected item onto the body area for usage.
+ - hax-body - the body tag that's beening clicked / focused and built; our WYSIWYG replacement.
+ - hax-panel - a panel off to the side that has possible options. Clicking in this panel is most likely what invokes hax-manager to display though this is also managed by a higher app (lrnapp-book in initial development)
+ - app - an API end point for querying and returning possible items for insert. For example, if a youtube is a source then it'll be expected to return data that can be mapped in such a way that it can display a grid of videos. Hitting vimeo we'd expect the same thing; enough data to be able to assemble a grid of videos to select / work with.
+ - endpoints - much of hax-manager is about routing data to and from the current application to backends. So uploads need to go some place, this is managing the UI aspect of that transaction while expecting to be fed an endpoint to handle the backend aspect.
+
+-->
+
+<dom-module id="hax-manager">
+  <template>
+    <style include="materializecss-styles">
+      :host {
+        display: block;
+        --hax-manager-steps-color: #ffb300;
+        --hax-manager-tab-color: #0d47a1;
+        --hax-manager-ink-color: #FFFFFF;
+      }
+      #dialog {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        overflow:hidden;
+      }
+      #dialogcontent {
+        margin-top: 46px;
+        padding: 8px 0;
+        height: calc(100vh - 86px);
+        overflow: scroll;
+      }
+      .preview-buttons {
+        position: absolute;
+        z-index: 2;
+        bottom: 0;
+        left: 0;
+        background-color: white;
+      }
+      #step {
+        display: inline-block;
+        --paper-toggle-button-checked-bar-color:  var(--paper-green-500);
+        --paper-toggle-button-checked-button-color:  var(--paper-green-500);
+        --paper-toggle-button-checked-ink-color: var(--paper-green-500);
+        --paper-toggle-button-unchecked-bar-color:  var(--paper-amber-900);
+        --paper-toggle-button-unchecked-button-color:  var(--paper-amber-900);
+        --paper-toggle-button-unchecked-ink-color: var(--paper-amber-900);
+      }
+      .pages-tabs {
+        position: absolute;
+        left: 0;
+        right: 0;
+        z-index: 1;
+        -webkit-box-shadow: 0 0 10px -1px #222222;
+        box-shadow: 0 0 10px -1px #222222;
+        --paper-tabs-selection-bar: {
+          border-bottom: 3px solid var(--hax-manager-steps-color);
+        };
+        --paper-tabs-container: {
+          margin: 0;
+          background: var(--hax-manager-tab-color);
+          color: var(--hax-manager-ink-color);
+          transition: opacity .3s ease;
+        };
+        --paper-tab-content-unselected: {
+          opacity: .9;
+          color: grey;
+        };
+        --paper-tab-ink: var(--hax-manager-ink-color);
+        --paper-tab: {
+          font-family: 'Roboto', 'Noto', sans-serif;
+          -webkit-font-smoothing: antialiased;
+          text-transform: uppercase;
+        };
+      }
+      .step-toggle-wrapper {
+        margin: 0;
+        padding: .8em;
+        position: absolute;
+        top: 0;
+        right: 0;
+        font-size: 1.2em;
+      }
+      paper-toggle-button {
+        display: inline-block;
+        vertical-align: middle;
+      }
+      .step-toggle-wrapper div {
+        display: inline-block;
+        padding: 0 .8em;
+        vertical-align: middle;
+      }
+      #dialogheader {
+        margin: 0;
+        padding: 1.2em;
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 2;
+        border-bottom: 1px solid #222222;
+        -webkit-box-shadow: 0 0 10px -1px #222222;
+        box-shadow: 0 0 10px -1px #222222;
+      }
+      #activepage {
+        padding-top:48px;
+      }
+      #dialogheader h2 {
+        margin: 0;
+        font-size: 1.8em
+      }
+      paper-tab iron-icon  {
+        padding-right: 1em;
+      }
+      vaadin-upload.thick-border {
+        --primary-color: #3f51b5;
+        --dark-primary-color: #063;
+        --light-primary-color: #6c9;
+        --error-color: darkred;
+
+        border: 2px solid #ccc;
+        padding: 14px;
+        background: #eee;
+        border-radius: 0;
+      }
+      vaadin-upload.thick-border[dragover] {
+        border-color: #396;
+      }
+      .page-area {
+        padding: 0 16px;
+      }
+      .page-area.add-area {
+        padding: 16px;
+      }
+      .add-url-are,
+      .add-upload-area {
+        margin: 1em 0;
+      }
+      .url-description {
+        font-size: .8em;
+        color:grey;
+      }
+      #preview {
+        height: 88vh;
+        max-height: 92%;
+      }
+      @media screen and (max-width: 550px) {
+        .hide-on-mobile {
+          opacity: 0;
+          visibility: hidden;
+          position: absolute;
+          left: -999em;
+        }
+        .preview-buttons {
+          position: sticky;
+        }
+        .page-area.hax-manager {
+          padding: .4em;
+        }
+        #newassetconfigure {
+          bottom: 0;
+          position: absolute;
+          width: 100%;
+          margin: 0;
+          padding: 1em;
+          background-color: #EEEEEE;
+        }
+        #insert {
+          bottom: 0;
+          position: absolute;
+          width: 50%;
+          margin: 0;
+          padding: 1em;
+          background-color: #AAFFAA;
+        }
+        #cancel {
+          bottom: 0;
+          right: 0;
+          position: absolute;
+          width: 50%;
+          margin: 0;
+          padding: 1em;
+          background-color: #FFDDDD;
+        }
+      }
+    </style>
+    <paper-dialog id="dialog" entry-animation="slide-from-bottom-animation" exit-animation="slide-down-animation" with-backdrop>
+      <div id="dialogheader" class="indigo white-text">
+        <h2>[[managerTitle]]</h2>
+        <div class="step-toggle-wrapper">
+          <paper-toggle-button id="step" checked="{{activeStep}}" disabled></paper-toggle-button>
+        </div>
+      </div>
+      <div class="dialog-contents" id="dialogcontent">
+        <iron-pages
+          selected="{{activeStep}}"
+          fallback-selection="select"
+          role="main">
+          <div data-value="select">
+            <paper-tabs id="pagetabs" class="pages-tabs" selected="{{activePage}}" autoselect>
+              <paper-tab><iron-icon icon="image:add-to-photos"></iron-icon><span class="hide-on-mobile">Add Something</span></paper-tab>
+              <paper-tab hidden$="[[!appList.length]]">
+                <iron-icon icon="search"></iron-icon><span class="hide-on-mobile">Find Something</span></paper-tab>
+              <paper-tab hidden$="[[!staxList.length]]">
+                <iron-icon icon="view-quilt"></iron-icon><span class="hide-on-mobile">Make Gizmo</span></paper-tab>
+            </paper-tabs>
+            <iron-pages
+              id="activepage"
+              selected="{{activePage}}"
+              fallback-selection="link">
+              <div class="page-area add-area">
+                <div class="add-url-area">
+                  <paper-input id="url" label="URL" type="url" auto-validate></paper-input>
+                <div class="url-description">A full URL with http:// referencing a link that already exists on the web.</div>
+                </div>
+                <div class="add-upload-area">
+                  <vaadin-upload form-data-name="file-upload" id="fileupload"></vaadin-upload>
+                </div>
+                <paper-button id="newassetconfigure" confirm raised>Configure item</paper-button>
+              </div>
+              <div class="page-area">
+                <hax-app-browser id="appbrowser">
+                  <slot></slot>
+                </hax-app-browser>
+              </div>
+              <div class="page-area">
+                <hax-gizmo-browser id="gizmobrowser"></hax-gizmo-browser>
+              </div>
+            </iron-pages>
+          </div>
+          <div>
+            <hax-preview id="preview" element="{{activeHaxElement}}"></hax-preview>
+            <div class="preview-buttons">
+              <paper-button id="insert" confirm raised>Insert</paper-button>
+              <paper-button id="cancel" raised>Cancel</paper-button>
+            </div>
+          </div>
+        </iron-pages>
+      </div>
+    </paper-dialog>
+  </template>
+
+  <script>
+    Polymer({
+
+      is: 'hax-manager',
+      listeners: {
+        'cancel.tap': 'cancel',
+        'newassetconfigure.tap': 'newAssetConfigure',
+        'insert.tap': 'insertHaxElement',
+        'fileupload.upload-before': '_fileAboutToUpload',
+        'fileupload.upload-response': '_fileUploadResponse',
+      },
+      properties: {
+        /**
+         * Title when open.
+         */
+        managerTitle: {
+          type: String,
+          computed: '_computeManagerTitle(activeStep)',
+        },
+        /**
+         * Title when open.
+         */
+        editExistingNode: {
+          type: Boolean,
+          value: false,
+        },
+        /**
+         * Active step currently selected
+         */
+        activeStep: {
+          type: Boolean,
+          value: false,
+        },
+        /**
+         * Active page currently selected
+         */
+        activePage: {
+          type: String,
+          value: 0,
+          observer: '_activePageChanged',
+        },
+        /**
+         * Active element
+         */
+        activeHaxElement: {
+          type: Object,
+          observer: '_activeHaxElementChanged',
+        },
+        /**
+         * List of apps so they can be added as tabs.
+         */
+        appList: {
+          type: Array,
+          value: [],
+        },
+        /**
+         * Helper so we can upload after prompting where to go.
+         */
+        __allowUpload: {
+          type: Boolean,
+          value: false,
+        },
+      },
+      /**
+       * Ready life cycle.
+       */
+      ready: function() {
+        document.body.appendChild(this);
+      },
+      /**
+       * Attached to the DOM, now fire that we exist.
+       */
+      attached: function() {
+        // fire an event that this is the manager
+        this.fire('hax-register-manager', this);
+        document.body.addEventListener('hax-store-property-updated', this._haxStorePropertyUpdated.bind(this));
+        document.body.addEventListener('hax-app-picker-selection', this._haxAppPickerSelection.bind(this));
+      },
+      /**
+       * Respond to uploading a file
+       */
+      _fileAboutToUpload: function(e) {
+        if (!this.__allowUpload) {
+          // cancel the event so we can jump in
+          e.preventDefault();
+          e.stopPropagation();
+          // look for a match as to what gizmo types it supports
+          let values = {
+            source: e.detail.file.name,
+            type: e.detail.file.type
+          };
+          // we have no clue what this is.. let's try and guess..
+          var type = Polymer.HaxStore.guessGizmoType(values);
+          // find targets that support this type
+          let targets = Polymer.HaxStore.getHaxAppStoreTargets(type);
+          // make sure we have targets
+          if (targets.length != 0) {
+            Polymer.HaxStore.instance.haxAppPicker.presentOptions(targets, type, 'Where would you like to upload this ' + type + '?', 'app');
+          }
+          else {
+            // @todo there isn't anything that supports this
+            console.log('we can\'t support that yet');
+          }
+        }
+        else {
+          this.__allowUpload = false;
+        }
+      },
+      /**
+       * Event for an app being selected from a picker
+       * This happens when multiple upload targets support the given type
+       */
+      _haxAppPickerSelection: function(e) {
+        // details for where to upload the file
+        let connection = e.detail.connection;
+        this.__appUsed = e.detail;
+        this.$.fileupload.method = connection.operations.add.method;
+        let requestEndPoint = connection.protocol + '://' + connection.url;
+        // ensure we build a url correctly
+        if (requestEndPoint.substr(requestEndPoint.length - 1) != '/') {
+          requestEndPoint += '/';
+        }
+        // support local end point modification
+        if (typeof connection.operations.add.endPoint !== typeof undefined) {
+          requestEndPoint += connection.operations.add.endPoint;
+        }
+        this.$.fileupload.headers = connection.headers;
+        this.$.fileupload.target = requestEndPoint;
+        // invoke file uploading...
+        this.__allowUpload = true;
+        this.$.fileupload.uploadFiles();
+      },
+      /**
+       * Respond to successful file upload, now inject url into url field and
+       * do a gizmo guess from there!
+       */
+      _fileUploadResponse: function(e) {
+        // convert response to object
+        let response = JSON.parse(e.detail.xhr.response);
+        // access the app that did the upload
+        let map = this.__appUsed.connection.operations.add.resultMap;
+        let data = {};
+        let item = {};
+        // look for the items element to draw our data from at its root
+        if (typeof this._resolveObjectPath(map.item, response) !== typeof undefined) {
+          data = this._resolveObjectPath(map.item, response);
+        }
+        item.type = map.defaultGizmoType;
+        // pull in prop matches
+        for(var prop in map.gizmo){
+          item[prop] = this._resolveObjectPath(map.gizmo[prop], data);
+        }
+        // another sanity check, if we don't have a url but have a source bind that too
+        if (typeof item.url === typeof undefined && typeof item.source !== typeof undefined) {
+          item.url = item.source;
+        }
+        // gizmo type is also supported in the mapping element itself
+        // Think an asset management backend as opposed to a specific
+        // type of asset like video. If the item coming across can
+        // effectively check what kind of gizmo is required for it
+        // to work then we need to support that asset declaring the
+        // gizmo type needed
+        if (typeof map.gizmo.type !== typeof undefined) {
+          item.type = this._resolveObjectPath(map.gizmo.type, data);
+        }
+        this.$.url.value = item.url;
+        this.newAssetConfigure();
+      },
+      /**
+       * Notice page changed.
+       */
+      _activePageChanged: function(newValue, oldValue) {
+        if (typeof newValue !== typeof undefined) {
+          if (newValue === 1) {
+            this.$.appbrowser.resetBrowser();
+          }
+          else if (newValue === 2) {
+            this.$.gizmobrowser.resetBrowser();
+          }
+        }
+      },
+      /**
+       * Store updated, sync.
+       */
+      _haxStorePropertyUpdated: function(e) {
+        if (e.detail && typeof e.detail.value !== typeof undefined && e.detail.property) {
+          this.set(e.detail.property, e.detail.value);
+        }
+      },
+      /**
+       * Form title of the modal based on the step.
+       */
+      _computeManagerTitle: function(step) {
+        if (!step) {
+          return 'Select';
+        }
+        else {
+          return 'Configure Gizmo';
+        }
+      },
+      /**
+       * Notice active element changed.
+       */
+      _activeHaxElementChanged: function(newValue, oldValue) {
+        if (typeof oldValue !== typeof undefined) {
+          this.$.preview.advancedForm = false;
+          this.$.step.disabled = false;
+          if (typeof newValue.tag === typeof undefined) {
+            this.resetManager();
+          }
+          else {
+            this.selectStep('configure');
+          }
+        }
+      },
+      /**
+       * Bubble up insert event.
+       */
+      insertHaxElement: function(e) {
+        // bubble up the inject event / element to the body
+        let previewNode = this.$.preview.previewNode;
+        let element = Polymer.HaxStore.nodeToHaxElement(previewNode);
+        element.replace = this.editExistingNode;
+        element.replacement = previewNode;
+        this.fire('hax-insert-content', element);
+        // reset self
+        this.resetManager();
+        // close window
+        this.toggleDialog();
+      },
+      /**
+       * Reset things on the display to their defaults.
+       */
+      resetManager: function() {
+        this.appList = Polymer.HaxStore.instance.appList;
+        this.__allowUpload = false;
+        this.editExistingNode = false;
+        this.$.url.value = '';
+        this.$.step.disabled = true;
+        this.$.fileupload.headers = '';
+        this.$.fileupload.method = '';
+        this.$.fileupload.target = '';
+        this.selectStep('select');
+        this.activePage = 0;
+      },
+      /**
+       * Cancel and close.
+       */
+      cancel: function(e) {
+        // reset and close dialog
+        this.resetManager();
+        this.toggleDialog();
+      },
+      /**
+       * Configure asset after upload or URL passed in.
+       */
+      newAssetConfigure: function() {
+        let values = {
+          source: this.$.url.value
+        };
+        // we have no clue what this is.. let's try and guess..
+        var type = Polymer.HaxStore.guessGizmoType(values);
+        let haxElements = Polymer.HaxStore.guessGizmo(type, values);
+        // see if we got anything
+        if (haxElements.length > 0) {
+          if (haxElements.length === 1) {
+            if (typeof haxElements[0].tag !== typeof undefined) {
+              Polymer.HaxStore.write('activeHaxElement', haxElements[0], this);
+            }
+          }
+          else {
+            // hand off to hax-app-picker to deal with the rest of this
+            Polymer.HaxStore.instance.haxAppPicker.presentOptions(haxElements, type, 'Pick how to present the ' + type, 'gizmo');
+          }
+        }
+        else {
+          Polymer.HaxStore.toast("Sorry, I don't know how to handle that link yet.");
+        }
+      },
+      /**
+       * Toggle ourselves.
+       */
+      toggleDialog: function() {
+        this.$.dialog.toggle();
+        this.$$('#pagetabs').focus();
+        //this.$.url.focus();
+        //this.$.url.select();
+      },
+      /**
+       * Set step to configure or insert
+       */
+      selectStep: function(step) {
+        if (step == 'configure') {
+          this.activeStep = true;
+        }
+        else {
+          this.activeStep = false;
+        }
+      },
+      /**
+       * Helper to take a multi-dimensional object and convert
+       * it's reference into the real value. This allows for variable input defined
+       * in a string to actually hit the deeper part of an object structure.
+       */
+      _resolveObjectPath: function(path, obj) {
+        return path.split('.').reduce(function(prev, curr) {
+            return prev ? prev[curr] : null
+        }, obj || self);
+      }
+    });
+  </script>
+</dom-module>

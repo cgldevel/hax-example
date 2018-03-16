@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, minimum-scale=1, initial-scale=1, user-scalable=yes">
+
+  <title>hax-example demo</title>
+
+  <script src="../../webcomponentsjs/webcomponents-lite.js"></script>
+
+  <link rel="import" href="../../iron-demo-helpers/demo-pages-shared-styles.html">
+  <link rel="import" href="../../iron-demo-helpers/demo-snippet.html">
+  <link rel="import" href="../../hax-body/hax-body.html">
+  <link rel="import" href="../../hax-body/hax-store.html">
+  <link rel="import" href="../../hax-body/hax-manager.html">
+  <link rel="import" href="../../hax-body/hax-app-picker.html">
+  <link rel="import" href="../../hax-body/hax-panel.html">
+  <link rel="import" href="../hax-example.html">
+
+  <style is="custom-style" include="demo-pages-shared-styles">
+  </style>
+</head>
+
+<body>
+  <div class="vertical-section-container centered">
+    <h3>Basic hax-example demo</h3>
+    <hax-store></hax-store>
+    <hax-app-picker></hax-app-picker>
+    <hax-body context-offset-left="-164" style="padding-top:2em;">
+      <p>This is fake</p>
+      <headless-example></headless-example>
+    </hax-body>
+    <hax-panel></hax-panel>
+    <hax-manager></hax-manager>
+  </div>
+</body>
+
+</html>
