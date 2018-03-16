@@ -1,0 +1,28 @@
+{
+  "name": "hax-example",
+  "main": "hax-example.html",
+  "dependencies": {
+    "polymer": "Polymer/polymer#^1.4.0",
+    "paper-card": "PolymerElements/paper-card#^2.1.0",
+    "hax-body-behaviors": "LRNWebComponents/hax-body-behaviors#^1.4.0",
+    "schema-behaviors": "LRNWebComponents/schema-behaviors#^0.1.0"
+  },
+  "devDependencies": {
+    "iron-component-page": "PolymerElements/iron-component-page#^1.0.0",
+    "iron-demo-helpers": "PolymerElements/iron-demo-helpers#^1.0.0",
+    "web-component-tester": "^6.0.0-prerelease.5",
+    "webcomponentsjs": "webcomponents/webcomponentsjs#^0.7.0",
+    "hax-body": "LRNWebComponents/hax-body#^0.8.6"
+  },
+  "homepage": "https://github.com/cgldevel/hax-example",
+  "_release": "c1b8bc0d73",
+  "_resolution": {
+    "type": "branch",
+    "branch": "master",
+    "commit": "c1b8bc0d731415c2e2a51fa64189c0a4a0db2004"
+  },
+  "_source": "https://github.com/cgldevel/hax-example.git",
+  "_target": "master",
+  "_originalSource": "cgldevel/hax-example",
+  "_direct": true
+}
